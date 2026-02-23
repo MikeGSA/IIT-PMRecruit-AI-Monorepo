@@ -1,0 +1,410 @@
+{
+  "name": "Recruit-AI — Full Multi-Agent Pipeline",
+  "nodes": [
+
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "screening-pipeline",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "Pipeline Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 400],
+      "webhookId": "recruit-ai-pipeline-001"
+    },
+
+    {
+      "parameters": {
+        "model": "claude-sonnet-4-6",
+        "options": { "temperature": 0.1, "maxTokens": 2048 }
+      },
+      "id": "node-model-1",
+      "name": "Claude Model — Agent 1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1,
+      "position": [460, 600],
+      "credentials": {
+        "anthropicApi": { "name": "Anthropic account" }
+      }
+    },
+
+    {
+      "parameters": {
+        "promptType": "define",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "You are Agent 1 — a recruitment data extraction specialist. Given a resume and job description, extract and return ONLY valid JSON (no markdown, no code fences, no explanation):\n{\n  \"candidate\": {\n    \"name\": \"string\",\n    \"email\": \"string\",\n    \"phone\": \"string\",\n    \"location\": \"string\",\n    \"current_title\": \"string\",\n    \"years_experience\": 0,\n    \"skills\": [\"string\"],\n    \"years_experience_per_skill\": {},\n    \"education\": { \"degree\": \"string\", \"institution\": \"string\", \"graduation_year\": 2020 },\n    \"certifications\": [\"string\"],\n    \"work_history\": [{ \"company\": \"string\", \"title\": \"string\", \"duration\": \"string\" }],\n    \"languages\": [\"string\"],\n    \"links\": { \"github\": \"\", \"linkedin\": \"\", \"portfolio\": \"\" },\n    \"visa_status\": \"string\",\n    \"soft_skills\": [\"string\"]\n  },\n  \"job_requirements\": {\n    \"must_haves\": [\"string\"],\n    \"nice_to_haves\": [\"string\"],\n    \"experience_years_required\": 0,\n    \"culture_keywords\": [\"string\"],\n    \"job_title\": \"string\",\n    \"department\": \"string\"\n  },\n  \"job_id\": \"string\"\n}"
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "Resume:\n{{ $('Pipeline Webhook').item.json.body.resume_text }}\n\nJob Description:\n{{ $('Pipeline Webhook').item.json.body.job_description }}\n\nJob ID: {{ $('Pipeline Webhook').item.json.body.job_id }}"
+            }
+          ]
+        }
+      },
+      "id": "node-chain-1",
+      "name": "Agent 1 — Document Parser",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [460, 400]
+    },
+
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const raw = $input.first().json.text || $input.first().json.content || '';\nlet parsed;\ntry {\n  const cleaned = raw.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  throw new Error('Agent 1 parse error: ' + e.message);\n}\nif (!parsed.candidate) throw new Error('Agent 1: missing candidate');\nif (!parsed.job_requirements) throw new Error('Agent 1: missing job_requirements');\nif (!parsed.job_id) parsed.job_id = $('Pipeline Webhook').first().json.body?.job_id || '';\nreturn [{ json: parsed }];"
+      },
+      "id": "node-code-1",
+      "name": "Parse Agent 1 Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+
+    {
+      "parameters": {
+        "model": "claude-sonnet-4-6",
+        "options": { "temperature": 0.1, "maxTokens": 1024 }
+      },
+      "id": "node-model-2",
+      "name": "Claude Model — Agent 2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1,
+      "position": [900, 600],
+      "credentials": {
+        "anthropicApi": { "name": "Anthropic account" }
+      }
+    },
+
+    {
+      "parameters": {
+        "promptType": "define",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "You are Agent 2 — a recruitment scoring specialist. Score the candidate against job requirements. Return ONLY valid JSON (no markdown, no code fences):\n{\n  \"score_breakdown\": {\n    \"must_haves\": 0,\n    \"experience\": 0,\n    \"adjacency\": 0,\n    \"culture\": 0\n  },\n  \"strengths\": [\"string\"],\n  \"gaps\": [\"string\"],\n  \"confidence\": \"High\"\n}\nScoring: must_haves=% of must-haves met (0-100), experience=years/depth match (0-100), adjacency=transferable skills value (0-100), culture=culture keyword alignment (0-100). confidence: High/Medium/Low. strengths: 3-5 role-specific. gaps: 2-4 honest gaps."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "Candidate:\n{{ JSON.stringify($('Parse Agent 1 Output').item.json.candidate) }}\n\nJob requirements:\n{{ JSON.stringify($('Parse Agent 1 Output').item.json.job_requirements) }}"
+            }
+          ]
+        }
+      },
+      "id": "node-chain-2",
+      "name": "Agent 2 — Skill Matcher",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [900, 400]
+    },
+
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const raw = $input.first().json.text || $input.first().json.content || '';\nlet br;\ntry {\n  const cleaned = raw.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  br = JSON.parse(cleaned);\n} catch (e) {\n  throw new Error('Agent 2 parse error: ' + e.message);\n}\nconst sd = br.score_breakdown;\nconst fit_score = Math.round((sd.must_haves*0.40)+(sd.experience*0.25)+(sd.adjacency*0.20)+(sd.culture*0.15));\nlet status, proceed_to_scheduling, routing_key;\nif      (fit_score >= 85) { status='Qualified/High';   proceed_to_scheduling=true;  routing_key='qualified'; }\nelse if (fit_score >= 70) { status='Qualified/Medium'; proceed_to_scheduling=true;  routing_key='qualified'; }\nelse if (fit_score >= 60) { status='Borderline';       proceed_to_scheduling=false; routing_key='borderline'; }\nelse                      { status='Rejected';          proceed_to_scheduling=false; routing_key='rejected'; }\nconst a1 = $('Parse Agent 1 Output').first().json;\nreturn [{ json: {\n  candidate: a1.candidate,\n  job_requirements: a1.job_requirements,\n  job_id: a1.job_id,\n  fit_score, status, confidence: br.confidence,\n  score_breakdown: sd,\n  strengths: br.strengths,\n  gaps: br.gaps,\n  proceed_to_scheduling,\n  routing_key,\n  candidate_name:  a1.candidate?.name  || '',\n  candidate_email: a1.candidate?.email || '',\n  job_title:       a1.job_requirements?.job_title || ''\n} }];"
+      },
+      "id": "node-code-2",
+      "name": "Calculate Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.routing_key }}",
+              "operation": "equal",
+              "value2": "qualified"
+            }
+          ]
+        }
+      },
+      "id": "node-if-qualified",
+      "name": "IF — Qualified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 400]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.routing_key }}",
+              "operation": "equal",
+              "value2": "rejected"
+            }
+          ]
+        }
+      },
+      "id": "node-if-rejected",
+      "name": "IF — Rejected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 620]
+    },
+
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "getAll",
+        "calendarId": "={{ $('Pipeline Webhook').first().json.body.interviewer_calendar_id || 'primary' }}",
+        "returnAll": false,
+        "limit": 50,
+        "timeMin": "={{ new Date().toISOString() }}",
+        "timeMax": "={{ new Date(Date.now() + 14*24*60*60*1000).toISOString() }}",
+        "options": {}
+      },
+      "id": "node-calendar",
+      "name": "Agent 3 — Get Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [1560, 200],
+      "credentials": {
+        "googleCalendarOAuth2Api": { "name": "Google Calendar account" }
+      }
+    },
+
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const SLOT_MS=45*60*1000,BUFFER_MS=15*60*1000,MAX=5;\nconst busy=$input.all().filter(i=>i.json.start?.dateTime).map(i=>({s:new Date(i.json.start.dateTime).getTime(),e:new Date(i.json.end.dateTime).getTime()}));\nconst PREFS=[9*60,9*60+30,10*60,10*60+30,11*60,11*60+30,13*60,13*60+30,14*60,14*60+30,15*60];\nfunction free(s,e){return!busy.some(b=>s<b.e+BUFFER_MS&&e>b.s-BUFFER_MS);}\nconst slots=[];\nconst now=Date.now();\nconst d=new Date(now+24*60*60*1000);\nd.setHours(0,0,0,0);\nwhile(d.getTime()<now+14*24*60*60*1000&&slots.length<MAX){\n  if(d.getDay()!==0&&d.getDay()!==6){\n    for(const m of PREFS){\n      if(slots.length>=MAX)break;\n      const ss=new Date(d);ss.setHours(Math.floor(m/60),m%60,0,0);\n      const se=new Date(ss.getTime()+SLOT_MS);\n      if(ss.getTime()>now&&free(ss.getTime(),se.getTime())){\n        slots.push({start:ss.toISOString(),end:se.toISOString(),display:ss.toLocaleString('en-US',{weekday:'long',month:'long',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})+' ET'});\n      }\n    }\n  }\n  d.setDate(d.getDate()+1);\n}\nif(!slots.length)throw new Error('No free slots in next 14 days');\nconst sc=$('Calculate Score').first().json;\nreturn[{json:{...sc,available_slots:slots}}];"
+      },
+      "id": "node-code-3",
+      "name": "Agent 3 — Find Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 200]
+    },
+
+    {
+      "parameters": {
+        "model": "claude-haiku-4-5-20251001",
+        "options": { "temperature": 0.5, "maxTokens": 400 }
+      },
+      "id": "node-model-3",
+      "name": "Claude Model — Agent 3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1,
+      "position": [2000, 400],
+      "credentials": {
+        "anthropicApi": { "name": "Anthropic account" }
+      }
+    },
+
+    {
+      "parameters": {
+        "promptType": "define",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "You are Agent 3 — an interview coordinator. Write a warm, professional email inviting the candidate to pick an interview slot. Under 120 words. Write ONLY the email body — no subject, no greeting, no sign-off."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "Candidate: {{ $json.candidate_name }}\nRole: {{ $json.job_title }}\nSlots:\n{{ $json.available_slots.map((s,i)=>(i+1)+'. '+s.display).join('\\n') }}\nAsk them to reply with their preferred slot number."
+            }
+          ]
+        }
+      },
+      "id": "node-chain-3",
+      "name": "Agent 3 — Draft Schedule Email",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [2000, 200]
+    },
+
+    {
+      "parameters": {
+        "sendTo": "={{ $('Agent 3 — Find Slots').item.json.candidate_email }}",
+        "subject": "=Interview Invitation — {{ $('Agent 3 — Find Slots').item.json.job_title }}",
+        "emailType": "text",
+        "message": "=Dear {{ $('Agent 3 — Find Slots').item.json.candidate_name }},\n\n{{ $json.text }}\n\nWarm regards,\nThe Recruiting Team",
+        "options": {}
+      },
+      "id": "node-gmail-schedule",
+      "name": "Agent 3 — Send Schedule Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [2220, 200],
+      "credentials": {
+        "gmailOAuth2": { "name": "Gmail account" }
+      }
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ...$('Agent 3 — Find Slots').item.json, scheduling_email_sent: true, pipeline_stage: 'scheduled' }) }}",
+        "options": {}
+      },
+      "id": "node-respond-qualified",
+      "name": "Respond — Qualified",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2440, 200]
+    },
+
+    {
+      "parameters": {
+        "model": "claude-haiku-4-5-20251001",
+        "options": { "temperature": 0.7, "maxTokens": 600 }
+      },
+      "id": "node-model-2b",
+      "name": "Claude Model — Agent 2b",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1,
+      "position": [1560, 1000],
+      "credentials": {
+        "anthropicApi": { "name": "Anthropic account" }
+      }
+    },
+
+    {
+      "parameters": {
+        "promptType": "define",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "SystemMessagePromptTemplate",
+              "message": "You are Agent 2b — a compassionate HR assistant writing personalised rejection emails. Rules: under 200 words, warm and encouraging, acknowledge 2 specific strengths, name the exact gaps, suggest 1-2 real learning resources (Coursera/LinkedIn Learning/official docs), invite reapplication in 6 months. Write ONLY the email body — no subject, no greeting, no sign-off."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "Candidate: {{ $json.candidate_name }}\nRole: {{ $json.job_title }}\nStrengths: {{ $json.strengths.join(', ') }}\nGaps: {{ $json.gaps.join(', ') }}\nScore: {{ $json.fit_score }}/100"
+            }
+          ]
+        }
+      },
+      "id": "node-chain-2b",
+      "name": "Agent 2b — Draft Rejection Email",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [1560, 800]
+    },
+
+    {
+      "parameters": {
+        "sendTo": "={{ $('Calculate Score').item.json.candidate_email }}",
+        "subject": "=Your application for {{ $('Calculate Score').item.json.job_title }}",
+        "emailType": "text",
+        "message": "=Dear {{ $('Calculate Score').item.json.candidate_name }},\n\n{{ $json.text }}\n\nWarm regards,\nThe Recruiting Team",
+        "options": {}
+      },
+      "id": "node-gmail-rejection",
+      "name": "Agent 2b — Send Rejection Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1780, 800],
+      "credentials": {
+        "gmailOAuth2": { "name": "Gmail account" }
+      }
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ...$('Calculate Score').item.json, rejection_email_sent: true, pipeline_stage: 'rejected' }) }}",
+        "options": {}
+      },
+      "id": "node-respond-rejected",
+      "name": "Respond — Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2000, 800]
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ...$json, pipeline_stage: 'borderline' }) }}",
+        "options": {}
+      },
+      "id": "node-respond-borderline",
+      "name": "Respond — Borderline",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 620]
+    }
+
+  ],
+
+  "connections": {
+    "Pipeline Webhook": {
+      "main": [[{ "node": "Agent 1 — Document Parser", "type": "main", "index": 0 }]]
+    },
+    "Claude Model — Agent 1": {
+      "ai_languageModel": [[{ "node": "Agent 1 — Document Parser", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Agent 1 — Document Parser": {
+      "main": [[{ "node": "Parse Agent 1 Output", "type": "main", "index": 0 }]]
+    },
+    "Parse Agent 1 Output": {
+      "main": [[{ "node": "Agent 2 — Skill Matcher", "type": "main", "index": 0 }]]
+    },
+    "Claude Model — Agent 2": {
+      "ai_languageModel": [[{ "node": "Agent 2 — Skill Matcher", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Agent 2 — Skill Matcher": {
+      "main": [[{ "node": "Calculate Score", "type": "main", "index": 0 }]]
+    },
+    "Calculate Score": {
+      "main": [[{ "node": "IF — Qualified?", "type": "main", "index": 0 }]]
+    },
+    "IF — Qualified?": {
+      "main": [
+        [{ "node": "Agent 3 — Get Calendar",        "type": "main", "index": 0 }],
+        [{ "node": "IF — Rejected?",                 "type": "main", "index": 0 }]
+      ]
+    },
+    "IF — Rejected?": {
+      "main": [
+        [{ "node": "Agent 2b — Draft Rejection Email", "type": "main", "index": 0 }],
+        [{ "node": "Respond — Borderline",             "type": "main", "index": 0 }]
+      ]
+    },
+    "Agent 3 — Get Calendar": {
+      "main": [[{ "node": "Agent 3 — Find Slots", "type": "main", "index": 0 }]]
+    },
+    "Agent 3 — Find Slots": {
+      "main": [[{ "node": "Agent 3 — Draft Schedule Email", "type": "main", "index": 0 }]]
+    },
+    "Claude Model — Agent 3": {
+      "ai_languageModel": [[{ "node": "Agent 3 — Draft Schedule Email", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Agent 3 — Draft Schedule Email": {
+      "main": [[{ "node": "Agent 3 — Send Schedule Email", "type": "main", "index": 0 }]]
+    },
+    "Agent 3 — Send Schedule Email": {
+      "main": [[{ "node": "Respond — Qualified", "type": "main", "index": 0 }]]
+    },
+    "Claude Model — Agent 2b": {
+      "ai_languageModel": [[{ "node": "Agent 2b — Draft Rejection Email", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Agent 2b — Draft Rejection Email": {
+      "main": [[{ "node": "Agent 2b — Send Rejection Email", "type": "main", "index": 0 }]]
+    },
+    "Agent 2b — Send Rejection Email": {
+      "main": [[{ "node": "Respond — Rejected", "type": "main", "index": 0 }]]
+    }
+  },
+
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "full-pipeline-v2",
+  "id": "recruit-ai-full-pipeline",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": [{ "name": "Recruit-AI" }]
+}
