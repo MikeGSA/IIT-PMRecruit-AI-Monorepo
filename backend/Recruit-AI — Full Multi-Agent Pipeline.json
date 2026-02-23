@@ -1,0 +1,669 @@
+{
+  "name": "Recruit-AI — Full Multi-Agent Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "screening-pipeline",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a6901b73-a70e-45e3-a7e7-0659f80bffd6",
+      "name": "Pipeline Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        240
+      ],
+      "webhookId": "recruit-ai-pipeline-001"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are Agent 1 — a recruitment data extraction specialist. Given a resume and job description, extract and return ONLY valid JSON (no markdown, no code fences, no explanation):\n{\n  \"candidate\": {\n    \"name\": \"string\", \"email\": \"string\", \"phone\": \"string\",\n    \"location\": \"string\", \"current_title\": \"string\", \"years_experience\": 0,\n    \"skills\": [\"string\"], \"years_experience_per_skill\": {},\n    \"education\": { \"degree\": \"string\", \"institution\": \"string\", \"graduation_year\": 2020 },\n    \"certifications\": [\"string\"],\n    \"work_history\": [{ \"company\": \"string\", \"title\": \"string\", \"duration\": \"string\" }],\n    \"languages\": [\"string\"], \"links\": { \"github\": \"\", \"linkedin\": \"\", \"portfolio\": \"\" },\n    \"visa_status\": \"string\", \"soft_skills\": [\"string\"]\n  },\n  \"job_requirements\": {\n    \"must_haves\": [\"string\"], \"nice_to_haves\": [\"string\"],\n    \"experience_years_required\": 0, \"culture_keywords\": [\"string\"],\n    \"job_title\": \"string\", \"department\": \"string\"\n  },\n  \"job_id\": \"string\"\n}\nUser Message:\n\n\nResume:\n{{ $('Pipeline Webhook').item.json.body.resume_text }}\n\nJob Description:\n{{ $('Pipeline Webhook').item.json.body.job_description }}\n\nJob ID: {{ $('Pipeline Webhook').item.json.body.job_id }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are Agent 1 — a recruitment data extraction specialist. Given a resume and job description, extract and return ONLY valid JSON (no markdown, no code fences, no explanation):\n{\n  \"candidate\": {\n    \"name\": \"string\",\n    \"email\": \"string\",\n    \"phone\": \"string\",\n    \"location\": \"string\",\n    \"current_title\": \"string\",\n    \"years_experience\": 0,\n    \"skills\": [\"string\"],\n    \"years_experience_per_skill\": {},\n    \"education\": { \"degree\": \"string\", \"institution\": \"string\", \"graduation_year\": 2020 },\n    \"certifications\": [\"string\"],\n    \"work_history\": [{ \"company\": \"string\", \"title\": \"string\", \"duration\": \"string\" }],\n    \"languages\": [\"string\"],\n    \"links\": { \"github\": \"\", \"linkedin\": \"\", \"portfolio\": \"\" },\n    \"visa_status\": \"string\",\n    \"soft_skills\": [\"string\"]\n  },\n  \"job_requirements\": {\n    \"must_haves\": [\"string\"],\n    \"nice_to_haves\": [\"string\"],\n    \"experience_years_required\": 0,\n    \"culture_keywords\": [\"string\"],\n    \"job_title\": \"string\",\n    \"department\": \"string\"\n  },\n  \"job_id\": \"string\"\n}"
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "Resume:\n{{ $('Pipeline Webhook').item.json.body.resume_text }}\n\nJob Description:\n{{ $('Pipeline Webhook').item.json.body.job_description }}\n\nJob ID: {{ $('Pipeline Webhook').item.json.body.job_id }}"
+            }
+          ]
+        }
+      },
+      "id": "b5283514-4778-481c-a2ac-5b8ad7fc07b6",
+      "name": "Agent 1 — Document Parser",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        -656,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.text || $input.first().json.content || '';\nlet parsed;\ntry {\n  const cleaned = raw.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  throw new Error('Agent 1 parse error: ' + e.message);\n}\nif (!parsed.candidate) throw new Error('Agent 1: missing candidate');\nif (!parsed.job_requirements) throw new Error('Agent 1: missing job_requirements');\nif (!parsed.job_id) parsed.job_id = $('Pipeline Webhook').first().json.body?.job_id || '';\nreturn [{ json: parsed }];"
+      },
+      "id": "0d32b836-f005-4e70-871d-f8b6cbf54293",
+      "name": "Parse Agent 1 Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are Agent 2 — a recruitment scoring specialist. Score the candidate against job requirements. Return ONLY valid JSON (no markdown, no code fences):\n{\n  \"score_breakdown\": {\n    \"must_haves\": 0,\n    \"experience\": 0,\n    \"adjacency\": 0,\n    \"culture\": 0\n  },\n  \"strengths\": [\"string\"],\n  \"gaps\": [\"string\"],\n  \"confidence\": \"High\"\n}\nScoring: must_haves=% of must-haves met (0-100), experience=years/depth match (0-100),\nadjacency=transferable skills value (0-100), culture=culture keyword alignment (0-100).\nconfidence: High/Medium/Low. strengths: 3-5 role-specific. gaps: 2-4 honest gaps.\nUser Message:\n\n\nCandidate:\n{{ JSON.stringify($('Parse Agent 1 Output').item.json.candidate) }}\n\nJob requirements:\n{{ JSON.stringify($('Parse Agent 1 Output').item.json.job_requirements) }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are Agent 2 — a recruitment scoring specialist. Score the candidate against job requirements. Return ONLY valid JSON (no markdown, no code fences):\n{\n  \"score_breakdown\": {\n    \"must_haves\": 0,\n    \"experience\": 0,\n    \"adjacency\": 0,\n    \"culture\": 0\n  },\n  \"strengths\": [\"string\"],\n  \"gaps\": [\"string\"],\n  \"confidence\": \"High\"\n}\nScoring: must_haves=% of must-haves met (0-100), experience=years/depth match (0-100), adjacency=transferable skills value (0-100), culture=culture keyword alignment (0-100). confidence: High/Medium/Low. strengths: 3-5 role-specific. gaps: 2-4 honest gaps."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "Candidate:\n{{ JSON.stringify($('Parse Agent 1 Output').item.json.candidate) }}\n\nJob requirements:\n{{ JSON.stringify($('Parse Agent 1 Output').item.json.job_requirements) }}"
+            }
+          ]
+        }
+      },
+      "id": "28a00dce-386b-4971-bba7-649184528696",
+      "name": "Agent 2 — Skill Matcher",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        -208,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.text || $input.first().json.content || '';\nlet br;\ntry {\n  const cleaned = raw.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  br = JSON.parse(cleaned);\n} catch (e) {\n  throw new Error('Agent 2 parse error: ' + e.message);\n}\nconst sd = br.score_breakdown;\nconst fit_score = Math.round((sd.must_haves*0.40)+(sd.experience*0.25)+(sd.adjacency*0.20)+(sd.culture*0.15));\nlet status, proceed_to_scheduling, routing_key;\nif      (fit_score >= 85) { status='Qualified/High';   proceed_to_scheduling=true;  routing_key='qualified'; }\nelse if (fit_score >= 70) { status='Qualified/Medium'; proceed_to_scheduling=true;  routing_key='qualified'; }\nelse if (fit_score >= 60) { status='Borderline';       proceed_to_scheduling=false; routing_key='borderline'; }\nelse                      { status='Rejected';          proceed_to_scheduling=false; routing_key='rejected'; }\nconst a1 = $('Parse Agent 1 Output').first().json;\nreturn [{ json: {\n  candidate: a1.candidate,\n  job_requirements: a1.job_requirements,\n  job_id: a1.job_id,\n  fit_score, status, confidence: br.confidence,\n  score_breakdown: sd,\n  strengths: br.strengths,\n  gaps: br.gaps,\n  proceed_to_scheduling,\n  routing_key,\n  candidate_name:  a1.candidate?.name  || '',\n  candidate_email: a1.candidate?.email || '',\n  job_title:       a1.job_requirements?.job_title || ''\n} }];"
+      },
+      "id": "881d56af-5641-4c66-a5ac-094fa6208838",
+      "name": "Calculate Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.routing_key }}",
+              "value2": "qualified"
+            }
+          ]
+        }
+      },
+      "id": "9df293e8-367e-4df2-889e-974bb1f53748",
+      "name": "IF — Qualified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        240,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.routing_key }}",
+              "value2": "rejected"
+            }
+          ]
+        }
+      },
+      "id": "1f34d630-682e-46a7-ba3d-150d4efbdd62",
+      "name": "IF — Rejected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        240,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "calendar",
+        "calendar": {
+          "__rl": true,
+          "value": "iitprecruitaiproject@gmail.com",
+          "mode": "list",
+          "cachedResultName": "iitprecruitaiproject@gmail.com"
+        },
+        "timeMin": "2026-02-23T00:00:00",
+        "timeMax": "2026-04-30T00:00:00",
+        "options": {}
+      },
+      "id": "53ab32d6-ef63-43ba-8095-346409b42dd6",
+      "name": "Agent 3 — Get Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        448,
+        32
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "UAFBLvACO428grsX",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const SLOT_MS=45*60*1000,BUFFER_MS=15*60*1000,MAX=5;\nconst busy=$input.all().filter(i=>i.json.start?.dateTime).map(i=>({s:new Date(i.json.start.dateTime).getTime(),e:new Date(i.json.end.dateTime).getTime()}));\nconst PREFS=[9*60,9*60+30,10*60,10*60+30,11*60,11*60+30,13*60,13*60+30,14*60,14*60+30,15*60];\nfunction free(s,e){return!busy.some(b=>s<b.e+BUFFER_MS&&e>b.s-BUFFER_MS);}\nconst slots=[];\nconst now=Date.now();\nconst d=new Date(now+24*60*60*1000);\nd.setHours(0,0,0,0);\nwhile(d.getTime()<now+14*24*60*60*1000&&slots.length<MAX){\n  if(d.getDay()!==0&&d.getDay()!==6){\n    for(const m of PREFS){\n      if(slots.length>=MAX)break;\n      const ss=new Date(d);ss.setHours(Math.floor(m/60),m%60,0,0);\n      const se=new Date(ss.getTime()+SLOT_MS);\n      if(ss.getTime()>now&&free(ss.getTime(),se.getTime())){\n        slots.push({start:ss.toISOString(),end:se.toISOString(),display:ss.toLocaleString('en-US',{weekday:'long',month:'long',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})+' ET'});\n      }\n    }\n  }\n  d.setDate(d.getDate()+1);\n}\nif(!slots.length)throw new Error('No free slots in next 14 days');\nconst sc=$('Calculate Score').first().json;\nreturn[{json:{...sc,available_slots:slots}}];"
+      },
+      "id": "6a8495ac-5552-45d5-9abe-a1183f37abae",
+      "name": "Agent 3 — Find Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are Agent 3 — an interview coordinator.\nWrite a warm, professional email inviting the candidate to pick an interview slot.\nUnder 120 words. Write ONLY the email body — no subject, no greeting, no sign-off.\nUser Message:\n\n\nCandidate: {{ $json.candidate_name }}\nRole: {{ $json.job_title }}\nSlots:\n{{ $json.available_slots.map((s,i) => (i+1) + '. ' + s.display).join('\\n') }}\nAsk them to reply with their preferred slot number.",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are Agent 3 — an interview coordinator. Write a warm, professional email inviting the candidate to pick an interview slot. Under 120 words. Write ONLY the email body — no subject, no greeting, no sign-off."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "Candidate: {{ $json.candidate_name }}\nRole: {{ $json.job_title }}\nSlots:\n{{ $json.available_slots.map((s,i)=>(i+1)+'. '+s.display).join('\\n') }}\nAsk them to reply with their preferred slot number."
+            }
+          ]
+        }
+      },
+      "id": "c7e7532f-6aef-428a-aacc-c2e8295bda01",
+      "name": "Agent 3 — Draft Schedule Email",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        896,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Agent 3 — Find Slots').item.json.candidate_email }}",
+        "subject": "=Interview Invitation — {{ $('Agent 3 — Find Slots').item.json.job_title }}",
+        "emailType": "text",
+        "message": "=Dear {{ $('Agent 3 — Find Slots').item.json.candidate_name }},\n\n{{ $json.text }}\n\nWarm regards,\nThe Recruiting Team",
+        "options": {}
+      },
+      "id": "83d6edb7-5cdc-499f-94a2-80709b8dc6ca",
+      "name": "Agent 3 — Send Schedule Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        32
+      ],
+      "webhookId": "42b9d534-7819-4fad-9f83-bb3fc97f19ba",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9UuHsBIkOhWovxxv",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ...$('Agent 3 — Find Slots').item.json, scheduling_email_sent: true, pipeline_stage: 'scheduled' }) }}",
+        "options": {}
+      },
+      "id": "971775b1-e69b-47b7-8bdc-c4a9625c00ad",
+      "name": "Respond — Qualified",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are Agent 2b — a compassionate HR assistant writing personalised rejection emails.\nRules: under 200 words, warm and encouraging, acknowledge 2 specific strengths,\nname the exact gaps, suggest 1-2 real learning resources (Coursera/LinkedIn Learning/official docs),\ninvite reapplication in 6 months.\nWrite ONLY the email body — no subject, no greeting, no sign-off.\nUser Message:\n\n\nCandidate: {{ $json.candidate_name }}\nRole: {{ $json.job_title }}\nStrengths: {{ $json.strengths.join(', ') }}\nGaps: {{ $json.gaps.join(', ') }}\nScore: {{ $json.fit_score }}/100",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are Agent 2b — a compassionate HR assistant writing personalised rejection emails. Rules: under 200 words, warm and encouraging, acknowledge 2 specific strengths, name the exact gaps, suggest 1-2 real learning resources (Coursera/LinkedIn Learning/official docs), invite reapplication in 6 months. Write ONLY the email body — no subject, no greeting, no sign-off."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "Candidate: {{ $json.candidate_name }}\nRole: {{ $json.job_title }}\nStrengths: {{ $json.strengths.join(', ') }}\nGaps: {{ $json.gaps.join(', ') }}\nScore: {{ $json.fit_score }}/100"
+            }
+          ]
+        }
+      },
+      "id": "8a5fd99c-279d-4a1b-a8a9-862a9fcfb7d8",
+      "name": "Agent 2b — Draft Rejection Email",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        448,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Calculate Score').item.json.candidate_email }}",
+        "subject": "=Your application for {{ $('Calculate Score').item.json.job_title }}",
+        "emailType": "text",
+        "message": "=Dear {{ $('Calculate Score').item.json.candidate_name }},\n\n{{ $json.text }}\n\nWarm regards,\nThe Recruiting Team",
+        "options": {}
+      },
+      "id": "ca9ef084-01d1-441e-95d2-f29b61be6e4a",
+      "name": "Agent 2b — Send Rejection Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        720,
+        640
+      ],
+      "webhookId": "d9f90d91-bc1c-4178-b333-2781ad927756",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9UuHsBIkOhWovxxv",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ...$('Calculate Score').item.json, rejection_email_sent: true, pipeline_stage: 'rejected' }) }}",
+        "options": {}
+      },
+      "id": "334d5a3e-57ae-4e9b-bdd4-456aa778ab36",
+      "name": "Respond — Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        896,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ...$json, pipeline_stage: 'borderline' }) }}",
+        "options": {}
+      },
+      "id": "9d4b99b6-f8c7-4fa5-a88d-d24e626ea84f",
+      "name": "Respond — Borderline",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        448,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -736,
+        448
+      ],
+      "id": "f17c084c-9419-44a6-a733-951cd9a0427e",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "uAvMwFbr4nbu1FLq",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        448
+      ],
+      "id": "189a81c5-4df9-45b4-9ccf-9eeb37ee297a",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "uAvMwFbr4nbu1FLq",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        384,
+        848
+      ],
+      "id": "66ce9171-51c7-426c-abec-c1b516f0fb4c",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "uAvMwFbr4nbu1FLq",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        832,
+        240
+      ],
+      "id": "ba51b113-cce8-4c1d-9f62-e84082e03c51",
+      "name": "Google Gemini Chat Model3",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "uAvMwFbr4nbu1FLq",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Pipeline Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "iitprecruitaiproject.app.n8n.cloud",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+            "content-length": "2632",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "27.7.12.71",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "IN",
+            "cf-ray": "9d2313bf514b1712-BLR",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "origin": "http://localhost:3000",
+            "priority": "u=1, i",
+            "referer": "http://localhost:3000/",
+            "sec-ch-ua": "\"Not:A-Brand\";v=\"99\", \"Google Chrome\";v=\"145\", \"Chromium\";v=\"145\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "27.7.12.71, 172.68.239.139",
+            "x-forwarded-host": "iitprecruitaiproject.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-78-74d8c5c9cc-dwgl8",
+            "x-is-trusted": "yes",
+            "x-real-ip": "27.7.12.71"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "resume_text": "JANE DOE\r\n123 Product Lane, San Francisco, CA | (555) 123-4567 | jane.doe@email.com | linkedin.com/in/janedoe\r\nPROFESSIONAL SUMMARY\r\nData-driven Product Manager with 5+ years of experience leading cross-functional teams to build high-impact SaaS products. Successfully drove user growth by 35% and increased retention by 20% in previous role through strategic feature launches. Skilled in Agile methodology, SQL, and user research, with a proven track record of reducing product development cycles. \r\nResume Worded\r\nResume Worded\r\n +4\r\nTECHNICAL SKILLS\r\nProduct Management: Roadmapping, User Research, A/B Testing, Product Lifecycle Management (PLM), Sprint Planning\r\nTools: Jira, Mixpanel, SQL, Asana, Google Analytics, Figma\r\nMethodologies: Agile, Scrum, Kanban, Lean \r\nResume Worded\r\nResume Worded\r\n +2\r\nPROFESSIONAL EXPERIENCE\r\nSENIOR PRODUCT MANAGER | TechCorp Inc., San Francisco, CA | 2021 – Present \r\nLed product strategy for the core analytics platform, resulting in a 40% increase in user engagement.\r\nManaged the end-to-end product lifecycle for three major features, reducing time-to-market by 20% using Agile methodologies.\r\nConducted 50+ user interviews to redefine the product roadmap, improving NPS by 15 points.\r\nCollaborated with engineering, design, and marketing teams to launch a new feature that generated $5M in revenue within the first quarter. \r\nGet Set RESUMES\r\nGet Set RESUMES\r\n +2\r\nPRODUCT MANAGER | Startup Solutions, San Jose, CA | 2018 – 2021 \r\nDrove the development of a mobile app feature that boosted active users by 35% in 6 months.\r\nAnalyzed product metrics (churn rate, CLV, ARR) to inform strategic decisions and product roadmap.\r\nPrioritized product requirements, balancing client needs with engineering capacity, increasing efficiency by 15%. \r\nResume.io\r\nResume.io\r\n +2\r\nEDUCATION\r\nMaster of Business Administration (MBA) | University of California, Berkeley\r\nB.S. in Computer Science | Stanford University\r\n",
+            "job_description": "Seeking an experienced Product Manager to lead our core platform roadmap.\n\nRequired:\n- 4+ years of product management at a SaaS company\n- Experience with B2B enterprise products\n- Strong data analysis skills (SQL a plus)\n- Proven track record shipping features at scale\n- Excellent stakeholder communication\n\nNice to have:\n- Technical background or engineering experience\n- Experience with AI/ML products\n- Background in HR Tech or Recruiting tools\n\nCulture: Outcome-driven, direct communication, no ego.",
+            "job_id": "role-002",
+            "interviewer_calendar_id": "primary"
+          },
+          "webhookUrl": "https://iitprecruitaiproject.app.n8n.cloud/webhook/screening-pipeline",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Pipeline Webhook": {
+      "main": [
+        [
+          {
+            "node": "Agent 1 — Document Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 1 — Document Parser": {
+      "main": [
+        [
+          {
+            "node": "Parse Agent 1 Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Agent 1 Output": {
+      "main": [
+        [
+          {
+            "node": "Agent 2 — Skill Matcher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 2 — Skill Matcher": {
+      "main": [
+        [
+          {
+            "node": "Calculate Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Score": {
+      "main": [
+        [
+          {
+            "node": "IF — Qualified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Qualified?": {
+      "main": [
+        [
+          {
+            "node": "Agent 3 — Get Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF — Rejected?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Rejected?": {
+      "main": [
+        [
+          {
+            "node": "Agent 2b — Draft Rejection Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond — Borderline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 3 — Get Calendar": {
+      "main": [
+        [
+          {
+            "node": "Agent 3 — Find Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 3 — Find Slots": {
+      "main": [
+        [
+          {
+            "node": "Agent 3 — Draft Schedule Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 3 — Draft Schedule Email": {
+      "main": [
+        [
+          {
+            "node": "Agent 3 — Send Schedule Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 3 — Send Schedule Email": {
+      "main": [
+        [
+          {
+            "node": "Respond — Qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 2b — Draft Rejection Email": {
+      "main": [
+        [
+          {
+            "node": "Agent 2b — Send Rejection Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 2b — Send Rejection Email": {
+      "main": [
+        [
+          {
+            "node": "Respond — Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 1 — Document Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 2 — Skill Matcher",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 2b — Draft Rejection Email",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 3 — Draft Schedule Email",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "0ed10f75-66be-48cb-acbb-912d90d0bb52",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0ba8023a718638aee80b6194fd75f935f8c8fa43b929d0e4f095509c78a34ccd"
+  },
+  "id": "aGjvgYERjR0zUbD9",
+  "tags": []
+}
