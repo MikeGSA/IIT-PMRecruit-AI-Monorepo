@@ -156,7 +156,7 @@ export const useRecruitStore = create<RecruitStore>()(
     }),
     {
       name: 'recruit-ai-store',
-      // Only persist roles and results — not derived state
+      skipHydration: true,
       partialize: (state) => ({
         roles: state.roles,
         screeningResults: state.screeningResults,
