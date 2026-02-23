@@ -1,7 +1,4 @@
 {
   "name": "iit-pm-recruit-ai-monorepo",
-  "private": true,
-  "workspaces": [
-    "frontend"
-  ]
+  "private": true
 }
