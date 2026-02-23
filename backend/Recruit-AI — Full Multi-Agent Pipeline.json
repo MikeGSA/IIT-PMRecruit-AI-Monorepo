@@ -227,7 +227,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ...$('Agent 3 — Find Slots').item.json, scheduling_email_sent: true, pipeline_stage: 'scheduled' }) }}",
+        "responseBody": "={{ Object.assign({}, $('Agent 3 — Find Slots').item.json, { scheduling_email_sent: true, pipeline_stage: 'scheduled' }) }}",
         "options": {}
       },
       "id": "971775b1-e69b-47b7-8bdc-c4a9625c00ad",
@@ -291,7 +291,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ...$('Calculate Score').item.json, rejection_email_sent: true, pipeline_stage: 'rejected' }) }}",
+        "responseBody": "={{ Object.assign({}, $('Calculate Score').item.json, { rejection_email_sent: true, pipeline_stage: 'rejected' }) }}",
         "options": {}
       },
       "id": "334d5a3e-57ae-4e9b-bdd4-456aa778ab36",
@@ -306,7 +306,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ...$json, pipeline_stage: 'borderline' }) }}",
+        "responseBody": "={{ Object.assign({}, $json, { pipeline_stage: 'borderline' }) }}",
         "options": {}
       },
       "id": "9d4b99b6-f8c7-4fa5-a88d-d24e626ea84f",
