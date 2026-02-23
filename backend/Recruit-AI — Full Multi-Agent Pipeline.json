@@ -143,8 +143,8 @@
           "mode": "list",
           "cachedResultName": "iitprecruitaiproject@gmail.com"
         },
-        "timeMin": "2026-02-23T00:00:00",
-        "timeMax": "2026-04-30T00:00:00",
+        "timeMin": "={{ $now.toISO() }}",
+        "timeMax": "={{ $now.plus({ days: 14 }).toISO() }}",
         "options": {}
       },
       "id": "53ab32d6-ef63-43ba-8095-346409b42dd6",
